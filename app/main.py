@@ -20,6 +20,8 @@ state_code_dict = {
         'TG': 'Telangana', 'TN': 'Tamil Nadu', 'TR': 'Tripura', 'UP': 'Uttar Pradesh', 'UT': 'Uttarakhand', 'WB': 'West Bengal'
     }
 
+reverse_state_code_dict = {val: key for key,val in state_code_dict.items()}
+
 
 def get_timeseries_data(type_of_graph: str, code: str) -> list:
     """Returns the timeseries data"""
@@ -60,6 +62,7 @@ def plot_data(type_of_graph: str, st_code: str) -> None:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('confirmed'), mode=graph_mode, name='Confirmed'))
         fig.update_traces(line_color='#13bdfa')
+        fig.update_layout(xaxis_title='Date', yaxis_title='Cases', hovermode="x unified")
         st.plotly_chart(figure_or_data=fig, use_container_width=True,sharing="streamlit", config=config)
 
     with active_chart:
@@ -67,6 +70,7 @@ def plot_data(type_of_graph: str, st_code: str) -> None:
         fig1 = go.Figure()
         fig1.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('active'), mode=graph_mode, name='Active'))
         fig1.update_traces(line_color='#f2bb30')
+        fig1.update_layout(xaxis_title='Date', yaxis_title='Cases', hovermode="x unified")
         st.plotly_chart(figure_or_data=fig1, use_container_width=True,sharing="streamlit", config=config)
 
     # Deceased Chart
@@ -75,6 +79,7 @@ def plot_data(type_of_graph: str, st_code: str) -> None:
         fig2 = go.Figure()
         fig2.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('deceased'), mode=graph_mode, name='Deceased'))
         fig2.update_traces(line_color='#f70b0b')
+        fig2.update_layout(xaxis_title='Date', yaxis_title='Cases', hovermode="x unified")
         st.plotly_chart(figure_or_data=fig2, use_container_width=True,sharing="streamlit", config=config)
 
     # Recovered Chart
@@ -83,6 +88,7 @@ def plot_data(type_of_graph: str, st_code: str) -> None:
         fig3 = go.Figure()
         fig3.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('recovered'), mode=graph_mode, name='Recovered'))
         fig3.update_traces(line_color='#44f534')
+        fig3.update_layout(xaxis_title='Date', yaxis_title='Cases', hovermode="x unified")
         st.plotly_chart(figure_or_data=fig3, use_container_width=True,sharing="streamlit", config=config)
 
 
@@ -126,9 +132,9 @@ def load_dashboard(st_code: str) -> None:
         st.metric(format(totals.get('recovered'), ","), "", recovered_delta)
 
 
-drop_down_options = [f"{val} ({key})" for key, val in state_code_dict.items()]
+drop_down_options = [f"{val}" for val in reverse_state_code_dict.keys()]
 option = st.selectbox('Select State/UT', drop_down_options, index=5)
-option_code = option[-4:].strip('()')
+option_code = reverse_state_code_dict.get(option)
 load_dashboard(option_code)
 
 # Initial Display
