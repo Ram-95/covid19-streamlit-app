@@ -13,29 +13,75 @@ columns=['lat', 'lon'])
 # st.map(df)
 
 url = 'https://data.incovid19.org/v4/min/data.min.json'
-def get_timeseries_data(code: str) -> list:
+def get_timeseries_data(type_of_graph: str, code: str) -> list:
     """Returns the timeseries data"""
     timeseries_url = f"https://data.incovid19.org/v4/min/timeseries-{code}.min.json"
     resp = requests.get(timeseries_url).json()
-    all_dates = resp['TT']['dates'] 
+    all_dates = resp[code]['dates'] 
     output_data = {'confirmed': [], 'deceased': [], 'recovered': [], 'active': [], 'labels': list(all_dates.keys())}
+    filter = 'total' if type_of_graph == 'Cummulative' else 'delta'
     
     for key in all_dates.keys():
-        output_data['confirmed'].append(all_dates.get(key).get('total').get('confirmed'))
-        output_data['deceased'].append(all_dates.get(key).get('total').get('deceased'))
-        output_data['recovered'].append(all_dates.get(key).get('total').get('recovered'))
+        current_date = all_dates.get(key).get(filter)
+        if current_date:
+            output_data['confirmed'].append(current_date.get('confirmed', None))
+            output_data['deceased'].append(current_date.get('deceased', None))
+            output_data['recovered'].append(current_date.get('recovered', None))
+        else:
+            output_data['confirmed'].append(None)
+            output_data['deceased'].append(None)
+            output_data['confirmed'].append(None)
         if output_data['confirmed'][-1] and output_data['deceased'][-1] and output_data['recovered'][-1]:
-            output_data['active'].append(output_data['confirmed'][-1] - (output_data['deceased'][-1] + output_data['recovered'][-1]))
+            output_data['active'].append(max(output_data['confirmed'][-1] - (output_data['deceased'][-1] + output_data['recovered'][-1]), 0))
         else:
             output_data['active'].append(None)
 
     return output_data
 
+
+def plot_data(type_of_graph: str, st_code: str) -> None:
+    """Plots the trend graph."""
+    st.header(f"{type_of_graph} Cases - {state_code_dict.get(st_code)}")
+    confirmed_chart, active_chart = st.columns(spec=2, gap="medium")
+    deceased_chart, recovered_chart = st.columns(spec=2, gap="medium")
+    timeseries_data = get_timeseries_data(type_of_graph, st_code)
+    graph_mode = 'lines'
+    
+    with confirmed_chart:
+        st.subheader('Confirmed')
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('confirmed'), mode=graph_mode, name='Confirmed'))
+        fig.update_traces(line_color='#13bdfa')
+        st.plotly_chart(figure_or_data=fig, use_container_width=True,sharing="streamlit")
+
+    with active_chart:
+        st.subheader('Active')
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('active'), mode=graph_mode, name='Active'))
+        fig1.update_traces(line_color='#f2bb30')
+        st.plotly_chart(figure_or_data=fig1, use_container_width=True,sharing="streamlit")
+
+    # Deceased Chart
+    with deceased_chart:
+        st.subheader('Deceased')
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('deceased'), mode=graph_mode, name='Deceased'))
+        fig1.update_traces(line_color='#f70b0b')
+        st.plotly_chart(figure_or_data=fig1, use_container_width=True,sharing="streamlit")
+
+    # Recovered Chart
+    with recovered_chart:
+        st.subheader('Recovered')
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('recovered'), mode=graph_mode, name='Recovered'))
+        fig1.update_traces(line_color='#44f534')
+        st.plotly_chart(figure_or_data=fig1, use_container_width=True,sharing="streamlit")
+
 timeseries_url = 'https://data.incovid19.org/v4/min/timeseries-TN.min.json'
 response = requests.get(url)
 data = response.json()
 state_code_dict = {
-        'AN': 'Andaman and Nicobar', 'AP': 'Andhra Pradesh', 'AR': 'Arunachal Pradesh', 'AS': 'Assam', 'BR': 'Bihar', 'TT': 'Total',
+        'AN': 'Andaman and Nicobar', 'AP': 'Andhra Pradesh', 'AR': 'Arunachal Pradesh', 'AS': 'Assam', 'BR': 'Bihar', 'TT': 'India',
         'CH': 'Chandigarh', 'CT': 'Chattisgarh', 'DL': 'Delhi', 'DN': 'Dadra and Nagar Haveli', 'GA': 'Goa', 'GJ': 'Gujarat',
         'HP': 'Himachal Pradesh', 'HR': 'Haryana', 'JH': 'Jharkhand', 'JK': 'Jammu and Kashmir', 'KA': 'Karnataka', 'KL': 'Kerala',
         'LA': 'Ladakh', 'LD': 'Lakshadweep', 'MH': 'Maharashtra', 'ML': 'Meghalaya', 'MN': 'Manipur', 'MP': 'Madhya Pradesh',
@@ -43,80 +89,47 @@ state_code_dict = {
         'TG': 'Telangana', 'TN': 'Tamil Nadu', 'TR': 'Tripura', 'UP': 'Uttar Pradesh', 'UT': 'Uttarakhand', 'WB': 'West Bengal'
     }
 
+def load_dashboard():
+    total_confirmed_cases_container, total_active_cases_container, total_deaths_container, total_recovered_cases_container = st.columns(spec=4, gap="large")
+    totals = data.get('TT').get('total')
+    last_updated_date = datetime.strptime(data.get('TT').get('meta').get('last_updated'), '%Y-%m-%d %H:%M:%S.%f').strftime('%Y-%m-%d %H:%M:%S')
+    total_active_cases = totals['confirmed'] - (totals['deceased'] + totals['recovered'])
+
+    delta = data.get('TT').get('delta')
+    confirmed_delta = delta.get('confirmed', 0)
+    deceased_delta = delta.get('deceased', 0)
+    recovered_delta = delta.get('recovered', 0)
+    active_delta = confirmed_delta - (deceased_delta + recovered_delta)
+    st.text(f"Data as on: {last_updated_date} (IST)")
+
+    with total_confirmed_cases_container:
+        st.header(":blue[Confirmed]")
+        st.subheader(format(totals.get('confirmed'), ","))
+        st.metric("", "", confirmed_delta)
+
+    with total_active_cases_container:
+        st.header(":orange[Active]")
+        st.subheader(format(total_active_cases, ","))
+        st.metric("", "", active_delta)
+
+    with total_deaths_container:
+        st.header(":red[Deaths]")
+        st.subheader(format(totals.get('deceased'), ","))
+        st.metric("", "", deceased_delta)
+
+    with total_recovered_cases_container:
+        st.header(":green[Recovered]")
+        st.subheader(format(totals.get('recovered'), ","))
+        st.metric(format(totals.get('recovered'), ","), "", recovered_delta)
+
+
+load_dashboard()
 drop_down_options = [f"{val} ({key})" for key, val in state_code_dict.items()]
-total_confirmed_cases_container, total_active_cases_container, total_deaths_container, total_recovered_cases_container = st.columns(spec=4, gap="large")
-totals = data.get('TT').get('total')
-last_updated_date = datetime.strptime(data.get('TT').get('meta').get('last_updated'), '%Y-%m-%d %H:%M:%S.%f').strftime('%Y-%m-%d %H:%M:%S')
-total_active_cases = totals['confirmed'] - (totals['deceased'] + totals['recovered'])
-
-delta = data.get('TT').get('delta')
-confirmed_delta = delta.get('confirmed', 0)
-deceased_delta = delta.get('deceased', 0)
-recovered_delta = delta.get('recovered', 0)
-active_delta = confirmed_delta - (deceased_delta + recovered_delta)
-st.text(f"Data as on: {last_updated_date} (IST)")
-
-with total_confirmed_cases_container:
-    st.header(":blue[Confirmed]")
-    st.subheader(format(totals.get('confirmed'), ","))
-    st.metric("", "", confirmed_delta)
-
-with total_active_cases_container:
-    st.header(":orange[Active]")
-    st.subheader(format(total_active_cases, ","))
-    st.metric("", "", active_delta)
-
-with total_deaths_container:
-    st.header(":red[Deaths]")
-    st.subheader(format(totals.get('deceased'), ","))
-    st.metric("", "", deceased_delta)
-
-with total_recovered_cases_container:
-    st.header(":green[Recovered]")
-    st.subheader(format(totals.get('recovered'), ","))
-    st.metric(format(totals.get('recovered'), ","), "", recovered_delta)
-
-option = st.selectbox('Select State/UT', drop_down_options)
+option = st.selectbox('Select State/UT', drop_down_options, index=5)
 option_code = option[-4:].strip('()')
-print(option_code)
-timeseries_data = get_timeseries_data('TT')
 
-st.header("Cummulative Cases")
-confirmed_chart, active_chart = st.columns(spec=2, gap="medium")
-with confirmed_chart:
-    st.subheader('Total Confirmed')
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('confirmed'), mode='lines+markers', name='Confirmed'))
-    fig.update_traces(line_color='#13bdfa')
-    # fig = px.line(timeseries_data, x=timeseries_data.get('labels'), y=timeseries_data.get('confirmed'), title='Total Confirmed Cases', markers=True)
-    st.plotly_chart(figure_or_data=fig, use_container_width=True,sharing="streamlit")
+# Initial Display
+plot_data("Cummulative", option_code)
+plot_data("Daily", option_code)
 
-with active_chart:
-    # Active Chart
-    st.subheader('Total Active')
-    fig1 = go.Figure()
-    fig1.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('active'), mode='lines+markers', name='Active'))
-    fig1.update_traces(line_color='#f2bb30')
-    st.plotly_chart(figure_or_data=fig1, use_container_width=True,sharing="streamlit")
-
-deceased_chart, recovered_chart = st.columns(spec=2, gap="medium")
-# Deceased Chart
-with deceased_chart:
-    st.subheader('Total Deceased')
-    fig1 = go.Figure()
-    fig1.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('deceased'), mode='lines+markers', name='Deceased'))
-    fig1.update_traces(line_color='#f70b0b')
-    st.plotly_chart(figure_or_data=fig1, use_container_width=True,sharing="streamlit")
-# st.line_chart(data=timeseries_data.get('confirmed'), x=timeseries_data.get('labels'))
-# st.line_chart(data=timeseries_data.get('deceased'), x=timeseries_data.get('labels'))
-# st.line_chart(data=timeseries_data.get('recovered'), x=timeseries_data.get('labels'))
-# fig.show()
-
-# Recovered Chart
-with recovered_chart:
-    st.subheader('Total Recovered')
-    fig1 = go.Figure()
-    fig1.add_trace(go.Scatter(x=timeseries_data.get('labels'), y=timeseries_data.get('recovered'), mode='lines+markers', name='Recovered'))
-    fig1.update_traces(line_color='#44f534')
-    st.plotly_chart(figure_or_data=fig1, use_container_width=True,sharing="streamlit")
 
