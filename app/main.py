@@ -131,6 +131,30 @@ def load_dashboard(st_code: str) -> None:
         st.subheader(format(totals.get('recovered'), ","))
         st.metric(format(totals.get('recovered'), ","), "", recovered_delta)
 
+def get_total_states_data() -> list:
+    """Returns the summary of all states."""
+    url = 'https://data.incovid19.org/v4/min/data.min.json'
+    response = requests.get(url)
+    data = response.json()
+    states_summary = {'Confirmed': {}, 'Deceased': {}, 'Active': {}, 'Recovered': {}}
+    for st_code, st_name in state_code_dict.items():
+        if st_code != 'TT':
+            totals = data.get(st_code).get('total')
+            total_active_cases = totals['confirmed'] - (totals['deceased'] + totals['recovered'])
+            # 1 Day Change
+            delta = data.get(st_code).get('delta')
+            confirmed_delta = delta.get('confirmed', 0)
+            deceased_delta = delta.get('deceased', 0)
+            recovered_delta = delta.get('recovered', 0)
+            active_delta = confirmed_delta - (deceased_delta + recovered_delta)
+            
+            states_summary['Confirmed'][st_name] = format(totals['confirmed'], ",") + f" ({confirmed_delta})"
+            states_summary['Recovered'][st_name] = format(totals['recovered'], ",") + f" ({recovered_delta})"
+            states_summary['Deceased'][st_name] = format(totals['deceased'], ",") + f" ({deceased_delta})"
+            states_summary['Active'][st_name] = format(total_active_cases, ",") + f" ({max(active_delta, 0)})"
+        
+    return states_summary
+
 
 drop_down_options = [f"{val}" for val in reverse_state_code_dict.keys()]
 option = st.selectbox('Select State/UT', drop_down_options, index=5)
@@ -140,5 +164,11 @@ load_dashboard(option_code)
 # Initial Display
 plot_data("Cummulative", option_code)
 plot_data("Daily", option_code)
+states_data = get_total_states_data()
+temp = {'row-1': {'confirmed': 1, 'recovered': 2, 'deaths': 3}}
 
+# Show the summary only when India is selected
+if option_code == 'TT':
+    st.subheader("COVID-19 Summary")
+    st.table(states_data)
 
